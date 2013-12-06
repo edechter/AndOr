@@ -1,26 +1,21 @@
 {-# Language GADTs #-}
 
-module AndOr where
+module AndOr.AndOr where
 
 import Prelude
-import Control.Monad 
+--import Control.Monad 
 
 import Data.HashMap.Strict (HashMap, (!))
 import qualified Data.HashMap.Strict  as HashMap
 
-import qualified Data.GraphViz as GraphViz
-import qualified Data.Graph.Inductive.Graph as FGL
 import Data.Hashable (Hashable)
-import qualified Data.Hashable as H
-import qualified Data.GraphViz.Attributes as Attributes
 
 -- | We implement a graph as an adjacency list. 
 type VertexMap a = HashMap a
 type Vertex  = Int
 type AdjacencyList a w =  VertexMap a (VertexMap a w)
 data AONode a = OrNode {label :: a} | AndNode {label :: a} deriving (Show, Eq)
-data Graph a w where  
-    Graph :: Hashable a => {adjList :: AdjacencyList a w, nodeMap :: VertexMap a a} -> Graph a w 
+data Graph a w  = Graph {adjList :: AdjacencyList a w, nodeMap :: VertexMap a a}
 type AOGraph a w = Graph (AONode a) w
 
 instance (Show a, Show w) => Show (Graph a w) where
@@ -29,23 +24,24 @@ instance (Show a, Show w) => Show (Graph a w) where
 empty :: Hashable a => Graph a w
 empty = Graph HashMap.empty HashMap.empty
 
-getLinksToNode :: (Eq w, Eq a) => Graph a w -> a -> [(w, a)]
+getLinksToNode :: (Eq w, Eq a, Hashable a) => Graph a w -> a -> [(w, a)]
 getLinksToNode Graph{adjList=al} v = HashMap.foldrWithKey f [] al
     where f v' innermap vs | v `HashMap.member` innermap = (innermap ! v, v'):vs
                            | otherwise = []
 
-getLinksFromNode :: Eq a => Graph a w -> a -> [(w, a)]
+getLinksFromNode :: (Eq a, Hashable a) => Graph a w -> a -> [(w, a)]
 getLinksFromNode Graph{adjList=al} n = case n `HashMap.lookup` al of
     (Just m) ->  map (\(x, y) -> (y, x)) $ HashMap.toList m
     Nothing  -> []
 
+deleteNode :: (Eq a, Hashable a) => Graph a w -> a -> Graph a w
 deleteNode ao@Graph{adjList=al, nodeMap=m} n 
     = let al' = HashMap.delete n al
-          al'' = HashMap.filter (\m -> n `HashMap.member` m) al'
+          al'' = HashMap.filter (\mp -> n `HashMap.member` mp) al'
           m'    = HashMap.delete n m 
       in ao{adjList=al'', nodeMap=m'}
 
-addNode :: (Eq a, Show a) => Graph a w -> a -> Graph a w
+addNode :: (Eq a, Show a, Hashable a) => Graph a w -> a -> Graph a w
 -- | Adds a node with a label to the graph. 
 -- | If vertex already exists, throws an error. 
 addNode ao@Graph{nodeMap=m, adjList=al} node
@@ -53,22 +49,22 @@ addNode ao@Graph{nodeMap=m, adjList=al} node
           al' = HashMap.insertWith (error $ "Graph adjList already contains source vertex " ++ show node) node HashMap.empty al
       in ao{nodeMap=m', adjList=al'}
 
-addNodes :: (Eq a, Show a) => Graph a w -> [a] -> Graph a w
-addNodes g nodes = foldl addNode g nodes
+addNodes :: (Show a, Eq a, Hashable a) => Graph a w -> [a] -> Graph a w
+addNodes = foldl addNode 
 
-addEdge :: (Eq a, Show a) => Graph a w -> (a, w, a) -> Graph a w
+addEdge :: (Eq a, Show a, Hashable a) => Graph a w -> (a, w, a) -> Graph a w
 addEdge g@Graph{adjList = al} (v1, w, v2)
     = let al' = insertAL al v1 v2 w
       in g{adjList=al'}
 
-addEdges :: (Eq a, Show a) => Graph a w -> [(a, w, a)] -> Graph a w
-addEdges g es = foldl addEdge g es
+addEdges :: (Eq a, Show a, Hashable a) => Graph a w -> [(a, w, a)] -> Graph a w
+addEdges = foldl addEdge 
 
 
-addNodeEdge
-  :: (Eq a, Show a) => Graph a w 
-                    -> (a, w, a) 
-                    -> Graph a w
+--addNodeEdge
+--  :: (Eq a, Show a) => Graph a w 
+--                    -> (a, w, a) 
+--                    -> Graph a w
 addNodeEdge ao (n1, w, n2) = let ao' = addNodes ao [n1, n2]
                          in addEdge ao' (n1, w, n2)
 
@@ -102,18 +98,19 @@ addOr ao a es = addNodeEdges ao [(OrNode a, w, AndNode b) | (w, b) <- es]
 -- Pretty Print --------------
 ------------------------------
 
-defaultVis = GraphViz.graphToDot GraphViz.nonClusteredParams
-graphToDot params g = GraphViz.graphToDot params g
+--defaultVis = GraphViz.graphToDot GraphViz.nonClusteredParams
+--graphToDot params g = GraphViz.graphToDot params g
 
-defaultParams = GraphViz.nonClusteredParams { GraphViz.fmtNode = fNode 
-                                            , GraphViz.fmtEdge = fEdge
-                                            } 
-        where fNode (v, (AndNode l)) = [GraphViz.toLabel l, GraphViz.shape GraphViz.BoxShape]
-              fNode (v, (OrNode l)) = [GraphViz.toLabel l, GraphViz.shape GraphViz.Ellipse]
-              fEdge (_, _, l) = [GraphViz.toLabel l]
+--defaultParams = GraphViz.nonClusteredParams { GraphViz.fmtNode = fNode 
+--                                            , GraphViz.fmtEdge = fEdge
+--                                            } 
+--        where fNode (v, (AndNode l)) = [GraphViz.toLabel l, GraphViz.shape GraphViz.BoxShape]
+--              fNode (v, (OrNode l)) = [GraphViz.toLabel l, GraphViz.shape GraphViz.Ellipse]
+--              fEdge (_, _, l) = [GraphViz.toLabel l]
 
---quickToPDF:: (GraphViz.Labellable a, GraphViz.Labellable w) => Graph (AONode a ) w -> FilePath -> IO FilePath
-quickToPDF g path = GraphViz.runGraphviz (graphToDot defaultParams g) GraphViz.Pdf path
+----quickToPDF:: (GraphViz.Labellable a, GraphViz.Labellable w) => Graph (AONode a ) w -> FilePath -> IO FilePath
+--quickToPDF g path = GraphViz.runGraphviz (graphToDot defaultParams g) GraphViz.Pdf path
+
 
 
 ------------------------------
